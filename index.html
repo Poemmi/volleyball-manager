@@ -115,6 +115,12 @@
                     >
                         Alle löschen
                     </button>
+                    <button 
+                        onclick="resetGame()" 
+                        class="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded transition"
+                    >
+                        Neues Spiel
+                    </button>
                 </div>
 
                 <!-- Players List -->
@@ -204,6 +210,18 @@
         </div>
     </div>
 
+    <!-- Team Selection Modal -->
+    <div id="teamSelectionModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Zu welchem Team?</h2>
+            <p class="text-sm text-gray-600 mb-4" id="selectedPlayerName"></p>
+            <div id="teamSelectionButtons" class="space-y-2"></div>
+            <button type="button" onclick="closeTeamSelectionModal()" class="w-full mt-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold transition">
+                Abbrechen
+            </button>
+        </div>
+    </div>
+
     <script>
         const colors = [
             'bg-red-100 border-red-300 text-red-800',
@@ -216,6 +234,7 @@
 
         let draggedPlayer = null;
         let editingPlayerName = null;
+        let selectedPlayerForTeam = null;
 
         // Get position color class
         function getPositionClass(position) {
@@ -237,6 +256,22 @@
         function formatStrength(strength) {
             const num = parseInt(strength) || 0;
             return '★'.repeat(num) + '☆'.repeat(5 - num);
+        }
+
+        // Sort players by position (zuspiel, mitte, aussen, keine)
+        function sortPlayersByPosition(playerNames) {
+            const players = loadPlayers();
+            const positionOrder = { 'zuspiel': 0, 'mitte': 1, 'aussen': 2, '': 3 };
+            
+            return playerNames.slice().sort((a, b) => {
+                const playerA = players.find(p => p.name === a);
+                const playerB = players.find(p => p.name === b);
+                
+                const posA = positionOrder[playerA?.position || ''] || 3;
+                const posB = positionOrder[playerB?.position || ''] || 3;
+                
+                return posA - posB;
+            });
         }
 
         // Load players from localStorage
@@ -307,7 +342,8 @@
             players.push({ name, position: '', strength: 3, kader: false, present: false });
             savePlayers(players);
             input.value = '';
-            input.focus();
+            // Öffne das Edit-Modal für den neuen Spieler
+            openEditModal(name);
         }
 
         // Remove player
@@ -334,6 +370,25 @@
             }
         }
 
+        // Reset game (clear teams and mark all as not present)
+        function resetGame() {
+            if (confirm('Neues Spiel starten? Alle Spieler werden aus den Teams entfernt und als abwesend markiert.')) {
+                const players = loadPlayers();
+                // Mark all players as not present
+                players.forEach(p => p.present = false);
+                savePlayers(players);
+                
+                // Clear all teams
+                const teams = loadTeams();
+                teams.forEach(team => team.players = []);
+                localStorage.setItem('volleyballTeams', JSON.stringify(teams));
+                
+                renderPlayers();
+                renderPresentPlayers();
+                renderTeams();
+            }
+        }
+
         // Open edit modal
         function openEditModal(playerName) {
             editingPlayerName = playerName;
@@ -354,6 +409,39 @@
         function closeEditModal() {
             document.getElementById('editModal').classList.remove('active');
             editingPlayerName = null;
+        }
+
+        // Open team selection modal
+        function openTeamSelectionModal(playerName) {
+            selectedPlayerForTeam = playerName;
+            const teams = loadTeams();
+            const modal = document.getElementById('teamSelectionModal');
+            const buttonsContainer = document.getElementById('teamSelectionButtons');
+            
+            document.getElementById('selectedPlayerName').textContent = playerName;
+            
+            buttonsContainer.innerHTML = teams.map(team => `
+                <button 
+                    onclick="addPlayerToTeamAndClose(${team.id}, '${playerName}')"
+                    class="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-4 py-3 rounded-lg font-semibold transition"
+                >
+                    → ${team.name}
+                </button>
+            `).join('');
+            
+            modal.classList.add('active');
+        }
+
+        // Close team selection modal
+        function closeTeamSelectionModal() {
+            document.getElementById('teamSelectionModal').classList.remove('active');
+            selectedPlayerForTeam = null;
+        }
+
+        // Add player to team and close modal
+        function addPlayerToTeamAndClose(teamId, playerName) {
+            addPlayerToTeam(teamId, playerName);
+            closeTeamSelectionModal();
         }
 
         // Update strength display
@@ -614,8 +702,8 @@
                             class="player-chip ${bgClass} text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-between cursor-move active:cursor-grabbing transform transition"
                             ondragstart="dragStart(event, '${player.name}')"
                             ondragend="dragEnd(event)"
-                            onclick="quickAddPlayer('${player.name}')"
-                            title="Ziehe zu Team oder tippe zum schnellen Hinzufügen"
+                            onclick="openTeamSelectionModal('${player.name}')"
+                            title="Klick um Team auszuwählen"
                         >
                             <div class="flex flex-col flex-1">
                                 <div class="flex items-center gap-2">
@@ -650,6 +738,7 @@
 
             container.innerHTML = teams.map((team, index) => {
                 const players = loadPlayers();
+                const sortedTeamPlayers = sortPlayersByPosition(team.players);
                 return `
                     <div class="border-2 ${colors[index % colors.length]} rounded-lg p-4">
                         <div class="flex justify-between items-center mb-4">
@@ -665,7 +754,7 @@
                         >
                             ${team.players.length === 0 
                                 ? '<p class="text-sm opacity-60 text-center py-4">Spieler hier ablegen</p>' 
-                                : team.players.map(playerName => {
+                                : sortedTeamPlayers.map(playerName => {
                                     const player = players.find(p => p.name === playerName);
                                     const positionClass = player ? getPositionClass(player.position) : '';
                                     const positionLabel = player ? getPositionLabel(player.position) : '';
@@ -722,10 +811,15 @@
 
         // Close modal when clicking outside
         document.addEventListener('DOMContentLoaded', () => {
-            const modal = document.getElementById('editModal');
+            const editModal = document.getElementById('editModal');
+            const teamSelectionModal = document.getElementById('teamSelectionModal');
+            
             window.addEventListener('click', (event) => {
-                if (event.target === modal) {
+                if (event.target === editModal) {
                     closeEditModal();
+                }
+                if (event.target === teamSelectionModal) {
+                    closeTeamSelectionModal();
                 }
             });
 
