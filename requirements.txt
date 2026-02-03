@@ -1,0 +1,6 @@
+Funktionalitäten: 
+- Es soll eine vor-definierte Liste aller Spieler geben. Der User wählt dann nur noch die Spieler aus, die an diesem Tag im Training sind.
+- Es sollen standardmäßig 2 Teams angelegt sein und auf maximal 4 erweitert werden können. 
+- Die Spieler die an dem Tag im Training sind sollen per Tap oder drag and drop einem der Teams zugewiesen werden können.
+- Teams sollen maximal 7 Spieler enthalten können.
+- Es soll eine Übersicht geben, die anzeigt, welche Spieler in welchem Team sind.

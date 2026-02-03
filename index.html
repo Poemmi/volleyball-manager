@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volleyball Team Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .player-chip {
+            cursor: grab;
+            transition: all 0.2s;
+        }
+        .player-chip:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .team-dropzone {
+            min-height: 200px;
+            border: 2px dashed transparent;
+            transition: all 0.2s;
+        }
+        .team-dropzone.drag-over {
+            background-color: rgba(255, 255, 255, 0.5) !important;
+            border-color: currentColor !important;
+            transform: scale(1.02);
+        }
+        .position-mitte {
+            background-color: #3b82f6 !important;
+            border: 4px solid #1e40af;
+        }
+        .position-aussen {
+            background-color: #ef4444 !important;
+            border: 4px solid #991b1b;
+        }
+        .position-zuspiel {
+            background-color: #22c55e !important;
+            border: 4px solid #15803d;
+        }
+        .player-team-mitte {
+            border-left: 4px solid #3b82f6;
+            background-color: #dbeafe;
+        }
+        .player-team-aussen {
+            border-left: 4px solid #ef4444;
+            background-color: #fee2e2;
+        }
+        .player-team-zuspiel {
+            border-left: 4px solid #22c55e;
+            background-color: #dcfce7;
+        }
+        .strength-stars {
+            font-size: 0.875rem;
+            letter-spacing: 0.1em;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8 mt-6">
+            <h1 class="text-4xl font-bold text-indigo-700 mb-2">🏐 Volleyball Teams</h1>
+            <p class="text-gray-600">Spieler per Drag & Drop oder Tap den Teams zuordnen</p>
+        </div>
+
+        <!-- Main Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left: Players Selection -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Alle Spieler</h2>
+                
+                <!-- Input Section -->
+                <div class="mb-6">
+                    <div class="flex gap-2 mb-4">
+                        <input 
+                            type="text" 
+                            id="playerInput" 
+                            placeholder="Name eingeben..." 
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            onkeypress="if(event.key==='Enter') addPlayer()"
+                        >
+                        <button 
+                            onclick="addPlayer()" 
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition"
+                        >
+                            +
+                        </button>
+                    </div>
+                    <button 
+                        onclick="clearAllPlayers()" 
+                        class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded transition"
+                    >
+                        Alle löschen
+                    </button>
+                </div>
+
+                <!-- Players List -->
+                <div id="playersList" class="bg-gray-50 rounded-lg p-4 space-y-2 min-h-40">
+                    <span class="text-gray-400 text-sm">Noch keine Spieler hinzugefügt</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">Klicken zum Markieren als anwesend | Rechtsklick für Eigenschaften</p>
+            </div>
+
+            <!-- Middle: Present Players -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 Heute anwesend</h2>
+                
+                <!-- Present Players List -->
+                <div id="presentPlayersList" class="bg-gray-50 rounded-lg p-4 space-y-2 min-h-40">
+                    <span class="text-gray-400 text-sm">Noch keine anwesenden Spieler</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">Spieler zum Team ziehen oder antippen → | Klick zum Entfernen</p>
+            </div>
+
+            <!-- Right: Teams -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Teams</h2>
+                    <button 
+                        onclick="addTeam()" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-semibold transition"
+                    >
+                        + Team
+                    </button>
+                </div>
+                <div id="teamsContainer" class="space-y-4"></div>
+            </div>
+
+        </div>
+
+        <!-- Footer Info -->
+        <div class="text-center text-sm text-gray-600 mt-8">
+            <p>💾 Daten werden lokal gespeichert</p>
+        </div>
+    </div>
+
+    <!-- Edit Player Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Spieler bearbeiten</h2>
+            <form id="editForm" onsubmit="savePlayerEdit(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input type="text" id="editName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" readonly>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Position</label>
+                    <select id="editPosition" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">-- Keine --</option>
+                        <option value="zuspiel">Zuspieler (Grün)</option>
+                        <option value="mitte">Mitte (Blau)</option>
+                        <option value="aussen">Außen (Rot)</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Stärke</label>
+                    <div class="flex gap-2">
+                        <input type="range" id="editStrength" min="1" max="5" value="3" class="flex-1">
+                        <span id="strengthDisplay" class="w-12 text-center font-bold">★★★☆☆</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="editKader" class="w-4 h-4">
+                        <span class="text-sm font-medium text-gray-700">Kaderspieler</span>
+                    </label>
+                </div>
+
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold transition">
+                        Speichern
+                    </button>
+                    <button type="button" onclick="closeEditModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold transition">
+                        Abbrechen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const colors = [
+            'bg-red-100 border-red-300 text-red-800',
+            'bg-blue-100 border-blue-300 text-blue-800',
+            'bg-green-100 border-green-300 text-green-800',
+            'bg-yellow-100 border-yellow-300 text-yellow-800',
+            'bg-purple-100 border-purple-300 text-purple-800',
+            'bg-pink-100 border-pink-300 text-pink-800',
+        ];
+
+        let draggedPlayer = null;
+        let editingPlayerName = null;
+
+        // Get position color class
+        function getPositionClass(position) {
+            if (position === 'mitte') return 'position-mitte';
+            if (position === 'aussen') return 'position-aussen';
+            if (position === 'zuspiel') return 'position-zuspiel';
+            return '';
+        }
+
+        // Get position label
+        function getPositionLabel(position) {
+            if (position === 'mitte') return 'Mitte';
+            if (position === 'aussen') return 'Außen';
+            if (position === 'zuspiel') return 'Zuspiel';
+            return '';
+        }
+
+        // Format strength display
+        function formatStrength(strength) {
+            const num = parseInt(strength) || 0;
+            return '★'.repeat(num) + '☆'.repeat(5 - num);
+        }
+
+        // Load players from localStorage
+        function loadPlayers() {
+            const saved = localStorage.getItem('volleyballPlayers');
+            if (!saved) return [];
+            const players = JSON.parse(saved);
+            // Ensure all players have the new properties
+            return players.map(p => {
+                if (typeof p === 'string') {
+                    return { name: p, position: '', strength: 3, kader: false, present: false };
+                }
+                return {
+                    name: p.name,
+                    position: p.position || '',
+                    strength: p.strength || 3,
+                    kader: p.kader || false,
+                    present: p.present || false
+                };
+            });
+        }
+
+        // Save players to localStorage
+        function savePlayers(players) {
+            localStorage.setItem('volleyballPlayers', JSON.stringify(players));
+            renderPlayers();
+            renderPresentPlayers();
+        }
+
+        // Load teams from localStorage
+        function loadTeams() {
+            const saved = localStorage.getItem('volleyballTeams');
+            if (!saved) {
+                // Create default teams if none exist
+                const defaultTeams = [
+                    { id: 1, name: 'Team 1', players: [] },
+                    { id: 2, name: 'Team 2', players: [] }
+                ];
+                localStorage.setItem('volleyballTeams', JSON.stringify(defaultTeams));
+                return defaultTeams;
+            }
+            return JSON.parse(saved);
+        }
+
+        // Save teams to localStorage
+        function saveTeams(teams) {
+            localStorage.setItem('volleyballTeams', JSON.stringify(teams));
+            renderTeams();
+            renderPresentPlayers();
+        }
+
+        // Add player
+        function addPlayer() {
+            const input = document.getElementById('playerInput');
+            const name = input.value.trim();
+            
+            if (!name) {
+                alert('Bitte einen Namen eingeben!');
+                return;
+            }
+
+            const players = loadPlayers();
+            if (players.find(p => p.name === name)) {
+                alert('Dieser Spieler existiert bereits!');
+                return;
+            }
+
+            players.push({ name, position: '', strength: 3, kader: false, present: false });
+            savePlayers(players);
+            input.value = '';
+            input.focus();
+        }
+
+        // Remove player
+        function removePlayer(name) {
+            const players = loadPlayers();
+            const filtered = players.filter(p => p.name !== name);
+            savePlayers(filtered);
+            
+            // Entferne Spieler auch aus allen Teams
+            const teams = loadTeams();
+            teams.forEach(team => {
+                team.players = team.players.filter(p => p !== name);
+            });
+            saveTeams(teams.filter(team => team.players.length > 0));
+        }
+
+        // Clear all players
+        function clearAllPlayers() {
+            if (confirm('Alle Spieler löschen?')) {
+                localStorage.setItem('volleyballPlayers', JSON.stringify([]));
+                localStorage.setItem('volleyballTeams', JSON.stringify([]));
+                renderPlayers();
+                renderTeams();
+            }
+        }
+
+        // Open edit modal
+        function openEditModal(playerName) {
+            editingPlayerName = playerName;
+            const players = loadPlayers();
+            const player = players.find(p => p.name === playerName);
+            
+            if (player) {
+                document.getElementById('editName').value = player.name;
+                document.getElementById('editPosition').value = player.position || '';
+                document.getElementById('editStrength').value = player.strength || 3;
+                document.getElementById('editKader').checked = player.kader || false;
+                updateStrengthDisplay();
+                document.getElementById('editModal').classList.add('active');
+            }
+        }
+
+        // Close edit modal
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            editingPlayerName = null;
+        }
+
+        // Update strength display
+        function updateStrengthDisplay() {
+            const strength = document.getElementById('editStrength').value;
+            document.getElementById('strengthDisplay').textContent = formatStrength(strength);
+        }
+
+        // Toggle player presence
+        function togglePlayerPresence(playerName) {
+            const players = loadPlayers();
+            const player = players.find(p => p.name === playerName);
+            if (player) {
+                player.present = !player.present;
+                savePlayers(players);
+                renderPresentPlayers();
+            }
+        }
+
+        // Render players list
+        function renderPlayers() {
+            const players = loadPlayers();
+            const container = document.getElementById('playersList');
+            
+            if (players.length === 0) {
+                container.innerHTML = '<span class="text-gray-400 text-sm">Noch keine Spieler hinzugefügt</span>';
+                return;
+            }
+
+            // Gruppiere Spieler nach Position
+            const groups = {
+                'zuspiel': [],
+                'mitte': [],
+                'aussen': [],
+                'keine': []
+            };
+
+            players.forEach(player => {
+                if (player.position === 'zuspiel') {
+                    groups.zuspiel.push(player);
+                } else if (player.position === 'mitte') {
+                    groups.mitte.push(player);
+                } else if (player.position === 'aussen') {
+                    groups.aussen.push(player);
+                } else {
+                    groups.keine.push(player);
+                }
+            });
+
+            // Sortiere jede Gruppe: Kaderspieler zuerst
+            Object.keys(groups).forEach(key => {
+                groups[key].sort((a, b) => {
+                    if (a.kader === b.kader) return 0;
+                    return a.kader ? -1 : 1;
+                });
+            });
+
+            // Rendere die Gruppen
+            const groupTitles = {
+                'zuspiel': '🟢 Zuspieler',
+                'mitte': '🔵 Mitte',
+                'aussen': '🔴 Außen',
+                'keine': '⚪ Keine Position'
+            };
+
+            let html = '';
+            Object.keys(groupTitles).forEach(key => {
+                if (groups[key].length > 0) {
+                    html += `<div class="mb-4">
+                        <div class="text-xs font-semibold text-gray-600 mb-2 px-2">${groupTitles[key]} (${groups[key].length})</div>`;
+                    
+                    groups[key].forEach(player => {
+                        const positionClass = getPositionClass(player.position);
+                        const positionLabel = getPositionLabel(player.position);
+                        const bgClass = positionClass || 'bg-indigo-500 hover:bg-indigo-600';
+                        const opacityClass = player.present ? '' : 'opacity-50';
+                        html += `
+                        <div 
+                            class="player-chip ${bgClass} text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-between cursor-pointer active:scale-95 transform transition ${opacityClass}"
+                            onclick="togglePlayerPresence('${player.name}')"
+                            oncontextmenu="openEditModal('${player.name}'); event.preventDefault();"
+                            title="${player.present ? '❌ Anwesend - klick zum entfernen' : '✅ Nicht anwesend - klick hinzufügen'} | Rechtsklick für Eigenschaften"
+                        >
+                            <div class="flex flex-col flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span>${player.present ? '✓' : '○'}</span>
+                                    <span>${player.name}</span>
+                                    ${player.kader ? '<span class="bg-yellow-300 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded">KADER</span>' : ''}
+                                </div>
+                                <div class="text-xs opacity-80 flex gap-2">
+                                    <span class="strength-stars">${formatStrength(player.strength)}</span>
+                                </div>
+                            </div>
+                            <button onclick="removePlayer('${player.name}'); event.stopPropagation();" class="ml-2 hover:opacity-80 flex-shrink-0">✕</button>
+                        </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Drag & Drop handlers
+        function dragStart(event, playerName) {
+            draggedPlayer = playerName;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', playerName);
+            event.target.style.opacity = '0.5';
+        }
+
+        function dragEnd(event) {
+            event.target.style.opacity = '1';
+            draggedPlayer = null;
+        }
+
+        function dragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            event.currentTarget.classList.add('drag-over');
+        }
+
+        function dragLeave(event) {
+            event.currentTarget.classList.remove('drag-over');
+        }
+
+        function drop(event, teamId) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            
+            const playerName = event.dataTransfer.getData('text/plain');
+            addPlayerToTeam(teamId, playerName);
+        }
+
+        // Quick add player to first available team
+        function quickAddPlayer(playerName) {
+            const teams = loadTeams();
+            if (teams.length === 0) {
+                alert('Bitte zuerst ein Team erstellen!');
+                return;
+            }
+            // Add to first team that doesn't have the player
+            const team = teams.find(t => !t.players.includes(playerName));
+            if (team) {
+                addPlayerToTeam(team.id, playerName);
+            } else {
+                alert('Spieler ist bereits in allen Teams!');
+            }
+        }
+
+        // Add player to team
+        function addPlayerToTeam(teamId, playerName) {
+            const teams = loadTeams();
+            const team = teams.find(t => t.id === teamId);
+            
+            if (!team) return;
+            if (team.players.includes(playerName)) return; // Already in team
+
+            team.players.push(playerName);
+            saveTeams(teams);
+        }
+
+        // Remove player from team
+        function removePlayerFromTeam(teamId, playerName) {
+            const teams = loadTeams();
+            const team = teams.find(t => t.id === teamId);
+            
+            if (team) {
+                team.players = team.players.filter(p => p !== playerName);
+                saveTeams(teams);
+            }
+        }
+
+        // Save player edit
+        function savePlayerEdit(event) {
+            event.preventDefault();
+            
+            const players = loadPlayers();
+            const player = players.find(p => p.name === editingPlayerName);
+            
+            if (player) {
+                player.position = document.getElementById('editPosition').value;
+                player.strength = parseInt(document.getElementById('editStrength').value) || 3;
+                player.kader = document.getElementById('editKader').checked;
+                savePlayers(players);
+                closeEditModal();
+            }
+        }
+
+        // Render present players list
+        function renderPresentPlayers() {
+            const players = loadPlayers();
+            const teams = loadTeams();
+            const container = document.getElementById('presentPlayersList');
+            
+            // Filter present players that are not in teams
+            const assignedPlayers = new Set();
+            teams.forEach(team => {
+                team.players.forEach(p => assignedPlayers.add(p));
+            });
+            const presentPlayers = players.filter(p => p.present && !assignedPlayers.has(p.name));
+            
+            if (presentPlayers.length === 0) {
+                container.innerHTML = '<span class="text-gray-400 text-sm">Noch keine anwesenden Spieler</span>';
+                return;
+            }
+
+            // Gruppiere nach Position
+            const groups = {
+                'zuspiel': [],
+                'mitte': [],
+                'aussen': [],
+                'keine': []
+            };
+
+            presentPlayers.forEach(player => {
+                if (player.position === 'zuspiel') {
+                    groups.zuspiel.push(player);
+                } else if (player.position === 'mitte') {
+                    groups.mitte.push(player);
+                } else if (player.position === 'aussen') {
+                    groups.aussen.push(player);
+                } else {
+                    groups.keine.push(player);
+                }
+            });
+
+            // Sortiere jede Gruppe: Kaderspieler zuerst
+            Object.keys(groups).forEach(key => {
+                groups[key].sort((a, b) => {
+                    if (a.kader === b.kader) return 0;
+                    return a.kader ? -1 : 1;
+                });
+            });
+
+            // Rendere die Gruppen
+            const groupTitles = {
+                'zuspiel': '🟢 Zuspieler',
+                'mitte': '🔵 Mitte',
+                'aussen': '🔴 Außen',
+                'keine': '⚪ Keine Position'
+            };
+
+            let html = '';
+            Object.keys(groupTitles).forEach(key => {
+                if (groups[key].length > 0) {
+                    html += `<div class="mb-4">
+                        <div class="text-xs font-semibold text-gray-600 mb-2 px-2">${groupTitles[key]} (${groups[key].length})</div>`;
+                    
+                    groups[key].forEach(player => {
+                        const positionClass = getPositionClass(player.position);
+                        const bgClass = positionClass || 'bg-indigo-500 hover:bg-indigo-600';
+                        html += `
+                        <div 
+                            draggable="true" 
+                            class="player-chip ${bgClass} text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-between cursor-move active:cursor-grabbing transform transition"
+                            ondragstart="dragStart(event, '${player.name}')"
+                            ondragend="dragEnd(event)"
+                            onclick="quickAddPlayer('${player.name}')"
+                            title="Ziehe zu Team oder tippe zum schnellen Hinzufügen"
+                        >
+                            <div class="flex flex-col flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span>${player.name}</span>
+                                    ${player.kader ? '<span class="bg-yellow-300 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded">KADER</span>' : ''}
+                                </div>
+                                <div class="text-xs opacity-80 flex gap-2">
+                                    <span class="strength-stars">${formatStrength(player.strength)}</span>
+                                </div>
+                            </div>
+                            <button onclick="togglePlayerPresence('${player.name}'); event.stopPropagation();" class="ml-2 hover:opacity-80 flex-shrink-0" title="Entfernen">✕</button>
+                        </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Render teams
+        function renderTeams() {
+            const teams = loadTeams();
+            const container = document.getElementById('teamsContainer');
+            
+            if (teams.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-12">Noch keine Teams erstellt</p>';
+                return;
+            }
+
+            container.innerHTML = teams.map((team, index) => {
+                const players = loadPlayers();
+                return `
+                    <div class="border-2 ${colors[index % colors.length]} rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg">${team.name}</h3>
+                            <button onclick="removeTeam(${team.id})" class="text-red-600 hover:text-red-800 font-bold text-lg">✕</button>
+                        </div>
+                        
+                        <div 
+                            class="team-dropzone ${colors[index % colors.length]} rounded p-3 space-y-2 mb-3"
+                            ondrop="drop(event, ${team.id})"
+                            ondragover="dragOver(event)"
+                            ondragleave="dragLeave(event)"
+                        >
+                            ${team.players.length === 0 
+                                ? '<p class="text-sm opacity-60 text-center py-4">Spieler hier ablegen</p>' 
+                                : team.players.map(playerName => {
+                                    const player = players.find(p => p.name === playerName);
+                                    const positionClass = player ? getPositionClass(player.position) : '';
+                                    const positionLabel = player ? getPositionLabel(player.position) : '';
+                                    const teamColorClass = player ? 
+                                        (player.position === 'mitte' ? 'player-team-mitte' : 
+                                         player.position === 'aussen' ? 'player-team-aussen' :
+                                         player.position === 'zuspiel' ? 'player-team-zuspiel' : 
+                                         'bg-white bg-opacity-70') : 'bg-white bg-opacity-70';
+                                    return `
+                                        <div class="px-3 py-2 rounded flex justify-between items-center text-sm font-medium transition ${teamColorClass} hover:bg-opacity-100">
+                                            <div class="flex flex-col flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span>${playerName}</span>
+                                                    ${player?.kader ? '<span class="bg-yellow-300 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded">KADER</span>' : ''}
+                                                </div>
+                                                <div class="text-xs opacity-70 flex gap-2">
+                                                    ${positionLabel ? `<span>${positionLabel}</span>` : ''}
+                                                    ${player ? `<span class="strength-stars">${formatStrength(player.strength)}</span>` : ''}
+                                                </div>
+                                            </div>
+                                            <button onclick="removePlayerFromTeam(${team.id}, '${playerName}')" class="text-red-600 hover:text-red-800 cursor-pointer flex-shrink-0 ml-2">✕</button>
+                                        </div>
+                                    `;
+                                }).join('')
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Add new team
+        function addTeam() {
+            const teams = loadTeams();
+            const teamName = prompt('Team Name:', `Team ${teams.length + 1}`);
+            
+            if (teamName !== null && teamName.trim()) {
+                teams.push({
+                    id: Date.now(),
+                    name: teamName.trim(),
+                    players: []
+                });
+                saveTeams(teams);
+            }
+        }
+
+        // Remove team
+        function removeTeam(teamId) {
+            if (confirm('Team löschen?')) {
+                const teams = loadTeams().filter(t => t.id !== teamId);
+                saveTeams(teams);
+            }
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('editModal');
+            window.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    closeEditModal();
+                }
+            });
+
+            // Update strength display on range input
+            const strengthInput = document.getElementById('editStrength');
+            if (strengthInput) {
+                strengthInput.addEventListener('input', updateStrengthDisplay);
+            }
+
+            renderPlayers();
+            renderPresentPlayers();
+            renderTeams();
+        });
+    </script>
+</body>
+</html>
