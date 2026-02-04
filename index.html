@@ -95,18 +95,11 @@
                 <!-- Input Section -->
                 <div class="mb-6">
                     <div class="flex gap-2 mb-4">
-                        <input 
-                            type="text" 
-                            id="playerInput" 
-                            placeholder="Name eingeben..." 
-                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            onkeypress="if(event.key==='Enter') addPlayer()"
-                        >
                         <button 
-                            onclick="addPlayer()" 
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition"
+                            onclick="openEditModal()" 
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition w-full"
                         >
-                            +
+                            + Neuer Spieler
                         </button>
                     </div>
                     <button 
@@ -170,7 +163,7 @@
             <form id="editForm" onsubmit="savePlayerEdit(event)">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                    <input type="text" id="editName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" readonly>
+                    <input type="text" id="editName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
                 </div>
 
                 <div class="mb-4">
@@ -413,18 +406,22 @@
 
         // Open edit modal
         function openEditModal(playerName) {
-            editingPlayerName = playerName;
             const players = loadPlayers();
-            const player = players.find(p => p.name === playerName);
-            
-            if (player) {
-                document.getElementById('editName').value = player.name;
-                document.getElementById('editPosition').value = player.position || '';
-                document.getElementById('editStrength').value = player.strength || 3;
-                document.getElementById('editKader').checked = player.kader || false;
-                updateStrengthDisplay();
-                document.getElementById('editModal').classList.add('active');
+            let player = null;
+            if (playerName) {
+                editingPlayerName = playerName;
+                player = players.find(p => p.name === playerName);
+            } else {
+                // Neuer Spieler: leeres Formular
+                editingPlayerName = null;
+                player = { name: '', position: '', strength: 3, kader: false };
             }
+            document.getElementById('editName').value = player.name;
+            document.getElementById('editPosition').value = player.position || '';
+            document.getElementById('editStrength').value = player.strength || 3;
+            document.getElementById('editKader').checked = player.kader || false;
+            updateStrengthDisplay();
+            document.getElementById('editModal').classList.add('active');
         }
 
         // Close edit modal
@@ -642,14 +639,36 @@
         // Save player edit
         function savePlayerEdit(event) {
             event.preventDefault();
-            
             const players = loadPlayers();
-            const player = players.find(p => p.name === editingPlayerName);
-            
-            if (player) {
-                player.position = document.getElementById('editPosition').value;
-                player.strength = parseInt(document.getElementById('editStrength').value) || 3;
-                player.kader = document.getElementById('editKader').checked;
+            const name = document.getElementById('editName').value.trim();
+            if (!name) {
+                alert('Bitte einen Namen eingeben!');
+                return;
+            }
+            if (editingPlayerName) {
+                // Bestehenden Spieler bearbeiten
+                const player = players.find(p => p.name === editingPlayerName);
+                if (player) {
+                    player.name = name;
+                    player.position = document.getElementById('editPosition').value;
+                    player.strength = parseInt(document.getElementById('editStrength').value) || 3;
+                    player.kader = document.getElementById('editKader').checked;
+                    savePlayers(players);
+                    closeEditModal();
+                }
+            } else {
+                // Neuen Spieler anlegen
+                if (players.find(p => p.name === name)) {
+                    alert('Dieser Spieler existiert bereits!');
+                    return;
+                }
+                players.push({
+                    name,
+                    position: document.getElementById('editPosition').value,
+                    strength: parseInt(document.getElementById('editStrength').value) || 3,
+                    kader: document.getElementById('editKader').checked,
+                    present: false
+                });
                 savePlayers(players);
                 closeEditModal();
             }
@@ -730,7 +749,7 @@
                             <div class="flex flex-col flex-1">
                                 <div class="flex items-center gap-2">
                                     <span>${player.name}</span>
-                                    ${player.kader ? '<span class="bg-yellow-300 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded">KADER</span>' : ''}
+                                    ${player.kader ? '<span class="bg-yellow-300 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded">KADER</span>' : ''}
                                 </div>
                                 <div class="text-xs opacity-80 flex gap-2">
                                     <span class="strength-stars">${formatStrength(player.strength)}</span>

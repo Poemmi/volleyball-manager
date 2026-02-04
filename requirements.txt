@@ -4,3 +4,8 @@ Funktionalitäten:
 - Die Spieler die an dem Tag im Training sind sollen per Tap oder drag and drop einem der Teams zugewiesen werden können.
 - Teams sollen maximal 7 Spieler enthalten können.
 - Es soll eine Übersicht geben, die anzeigt, welche Spieler in welchem Team sind.
+
+ToDo:
+- Maximal 7 Pro Team
+- Liste scrollbar machen (schauen wie sie bei 24 Leuten aussieht, eventuell Daten einmal mocken)
+- Sortierlogik erweitern
