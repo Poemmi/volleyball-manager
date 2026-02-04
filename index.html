@@ -274,11 +274,33 @@
             });
         }
 
+        // Default seed players
+        const defaultPlayers = [
+            { name: "Domi", position: "zuspiel", strength: 3, kader: true, present: false },
+            { name: "Didi", position: "mitte", strength: 3, kader: true, present: false },
+            { name: "Vera", position: "zuspiel", strength: 3, kader: true, present: false },
+            { name: "Nico", position: "aussen", strength: 3, kader: false, present: false },
+            { name: "Luci", position: "mitte", strength: 3, kader: true, present: false },
+            { name: "Dawid", position: "aussen", strength: 3, kader: true, present: false },
+            { name: "Armin", position: "zuspiel", strength: 3, kader: false, present: false },
+            { name: "Emilia", position: "zuspiel", strength: 3, kader: false, present: false },
+            { name: "Maren", position: "zuspiel", strength: 3, kader: true, present: false },
+            { name: "Jasper", position: "aussen", strength: 3, kader: false, present: false },
+        ];
+
         // Load players from localStorage
         function loadPlayers() {
             const saved = localStorage.getItem('volleyballPlayers');
-            if (!saved) return [];
-            const players = JSON.parse(saved);
+            let players = [];
+            
+            if (!saved) {
+                // Use default seed players if no players exist
+                players = JSON.parse(JSON.stringify(defaultPlayers));
+                localStorage.setItem('volleyballPlayers', JSON.stringify(players));
+            } else {
+                players = JSON.parse(saved);
+            }
+            
             // Ensure all players have the new properties
             return players.map(p => {
                 if (typeof p === 'string') {
@@ -829,6 +851,8 @@
                 strengthInput.addEventListener('input', updateStrengthDisplay);
             }
 
+            // Load players first (initializes with defaultPlayers if empty)
+            loadPlayers();
             renderPlayers();
             renderPresentPlayers();
             renderTeams();
